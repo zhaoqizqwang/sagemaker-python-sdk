@@ -48,6 +48,8 @@ INSTANCE_TYPE = "ml.g5.24xlarge"
 def model_builder_llama_inference_component():
     return ModelBuilder(
         model=LLAMA_2_7B_JS_ID,
+        # Pin: JumpStart v5.0.0 default image fails to start for this model.
+        model_version="4.*",
         schema_builder=SchemaBuilder(sample_input, sample_output),
         resource_requirements=ResourceRequirements(
             requests={"memory": 98304, "num_accelerators": 4, "copies": 1, "num_cpus": 40}
