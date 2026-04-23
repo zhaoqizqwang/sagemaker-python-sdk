@@ -1,4 +1,11 @@
 # Changelog
+## v2.9.0 (2026-04-23)
+
+### Bug Fixes
+
+- **Waiters**: Improve error messages for waiter timeouts
+- **DJL LMI**: Update ISO account mappings in image URI config
+
 ## v2.8.0 (2026-04-16)
 
 ### New Features
