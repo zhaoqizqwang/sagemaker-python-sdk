@@ -2514,3 +2514,145 @@ class TestCreateOrUpdateCodeDir:
                         None,
                         tmpdir,
                     )
+
+
+class TestDownloadFileSpotCheck:
+    """Spot-check behavior in common_utils.download_file."""
+
+    def test_download_from_default_bucket_includes_expected_owner(self, tmp_path):
+        from sagemaker.core.common_utils import download_file
+
+        mock_session = Mock()
+        mock_session.boto_region_name = "us-west-2"
+        mock_boto_session = Mock()
+        mock_session.boto_session = mock_boto_session
+        mock_s3 = Mock()
+        mock_bucket = Mock()
+        mock_boto_session.resource.return_value = mock_s3
+        mock_s3.Bucket.return_value = mock_bucket
+
+        mock_session._get_account_id_if_default_bucket.return_value = "111111111111"
+
+        download_file(
+            "sagemaker-us-west-2-111111111111", "k", str(tmp_path / "f"), mock_session
+        )
+
+        mock_session._get_account_id_if_default_bucket.assert_called_once_with(
+            "sagemaker-us-west-2-111111111111"
+        )
+        mock_bucket.download_file.assert_called_once_with(
+            "k", str(tmp_path / "f"), ExtraArgs={"ExpectedBucketOwner": "111111111111"}
+        )
+
+    def test_download_from_non_default_bucket_omits_expected_owner(self, tmp_path):
+        from sagemaker.core.common_utils import download_file
+
+        mock_session = Mock()
+        mock_session.boto_region_name = "us-west-2"
+        mock_boto_session = Mock()
+        mock_session.boto_session = mock_boto_session
+        mock_s3 = Mock()
+        mock_bucket = Mock()
+        mock_boto_session.resource.return_value = mock_s3
+        mock_s3.Bucket.return_value = mock_bucket
+
+        mock_session._get_account_id_if_default_bucket.return_value = None
+
+        download_file("cross-account-bucket", "k", str(tmp_path / "f"), mock_session)
+
+        mock_bucket.download_file.assert_called_once_with(
+            "k", str(tmp_path / "f"), ExtraArgs=None
+        )
+
+
+class TestSaveModelSpotCheck:
+    """Spot-check behavior in common_utils._save_model."""
+
+    def test_save_to_default_bucket_includes_expected_owner(self, tmp_path):
+        from sagemaker.core.common_utils import _save_model
+        from sagemaker.core.session_settings import SessionSettings
+
+        model_file = tmp_path / "m.tar.gz"
+        model_file.write_text("x")
+
+        mock_session = Mock()
+        mock_boto_session = Mock()
+        mock_session.boto_session = mock_boto_session
+        mock_session.boto_region_name = "us-west-2"
+        mock_session.settings = SessionSettings(encrypt_repacked_artifacts=False)
+        mock_s3 = Mock()
+        mock_obj = Mock()
+        mock_boto_session.resource.return_value = mock_s3
+        mock_s3.Object.return_value = mock_obj
+
+        mock_session._get_account_id_if_default_bucket.return_value = "111111111111"
+
+        _save_model(
+            "s3://sagemaker-us-west-2-111111111111/m.tar.gz",
+            str(model_file),
+            mock_session,
+            kms_key=None,
+        )
+
+        call_args = mock_obj.upload_file.call_args
+        assert call_args[1]["ExtraArgs"] == {"ExpectedBucketOwner": "111111111111"}
+
+    def test_save_to_non_default_bucket_omits_expected_owner(self, tmp_path):
+        from sagemaker.core.common_utils import _save_model
+        from sagemaker.core.session_settings import SessionSettings
+
+        model_file = tmp_path / "m.tar.gz"
+        model_file.write_text("x")
+
+        mock_session = Mock()
+        mock_boto_session = Mock()
+        mock_session.boto_session = mock_boto_session
+        mock_session.boto_region_name = "us-west-2"
+        mock_session.settings = SessionSettings(encrypt_repacked_artifacts=False)
+        mock_s3 = Mock()
+        mock_obj = Mock()
+        mock_boto_session.resource.return_value = mock_s3
+        mock_s3.Object.return_value = mock_obj
+
+        mock_session._get_account_id_if_default_bucket.return_value = None
+
+        _save_model(
+            "s3://marketplace-vendor-bucket/m.tar.gz",
+            str(model_file),
+            mock_session,
+            kms_key=None,
+        )
+
+        call_args = mock_obj.upload_file.call_args
+        assert call_args[1]["ExtraArgs"] is None
+
+    def test_save_to_default_bucket_preserves_kms(self, tmp_path):
+        from sagemaker.core.common_utils import _save_model
+        from sagemaker.core.session_settings import SessionSettings
+
+        model_file = tmp_path / "m.tar.gz"
+        model_file.write_text("x")
+
+        mock_session = Mock()
+        mock_boto_session = Mock()
+        mock_session.boto_session = mock_boto_session
+        mock_session.boto_region_name = "us-west-2"
+        mock_session.settings = SessionSettings()
+        mock_s3 = Mock()
+        mock_obj = Mock()
+        mock_boto_session.resource.return_value = mock_s3
+        mock_s3.Object.return_value = mock_obj
+
+        mock_session._get_account_id_if_default_bucket.return_value = "111111111111"
+
+        _save_model(
+            "s3://sagemaker-us-west-2-111111111111/m.tar.gz",
+            str(model_file),
+            mock_session,
+            kms_key="kms-key-id",
+        )
+
+        merged = mock_obj.upload_file.call_args[1]["ExtraArgs"]
+        assert merged["ServerSideEncryption"] == "aws:kms"
+        assert merged["SSEKMSKeyId"] == "kms-key-id"
+        assert merged["ExpectedBucketOwner"] == "111111111111"
