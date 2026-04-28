@@ -1105,6 +1105,9 @@ class EstimatorBase(with_metaclass(ABCMeta, object)):  # pylint: disable=too-man
             kms_key=kms_key,
             s3_resource=self.sagemaker_session.s3_resource,
             settings=self.sagemaker_session.settings,
+            expected_bucket_owner=self.sagemaker_session._get_account_id_if_default_bucket(
+                code_bucket
+            ),
         )
 
     def _assign_s3_prefix(self, key_prefix=""):
