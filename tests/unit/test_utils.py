@@ -657,7 +657,7 @@ def test_download_folder(makedirs):
     obj_mock = Mock()
     s3_mock.Object.return_value = obj_mock
 
-    def obj_mock_download(path):
+    def obj_mock_download(path, **kwargs):
         # Mock the S3 object to raise an error when the input to download_file
         # is a "folder"
         if path in ("/tmp/", os.path.join("/tmp", "prefix")):
@@ -686,8 +686,8 @@ def test_download_folder(makedirs):
 
     obj_mock.download_file.assert_called()
     calls = [
-        call(os.path.join("/tmp", "train", "train_data.csv")),
-        call(os.path.join("/tmp", "train", "validation_data.csv")),
+        call(os.path.join("/tmp", "train", "train_data.csv"), ExtraArgs=None),
+        call(os.path.join("/tmp", "train", "validation_data.csv"), ExtraArgs=None),
     ]
     obj_mock.download_file.assert_has_calls(calls)
     assert s3_mock.Object.call_count == 3
@@ -724,7 +724,7 @@ def test_download_folder_points_to_single_file(makedirs):
     sagemaker.utils.download_folder(BUCKET_NAME, "/prefix/train/train_data.csv", "/tmp", session)
 
     obj_mock.download_file.assert_called()
-    calls = [call(os.path.join("/tmp", "train_data.csv"))]
+    calls = [call(os.path.join("/tmp", "train_data.csv"), ExtraArgs=None)]
     obj_mock.download_file.assert_has_calls(calls)
     boto_mock.resource("s3").Bucket(BUCKET_NAME).objects.filter.assert_not_called()
     obj_mock.reset_mock()
@@ -827,7 +827,9 @@ def test_download_file():
         BUCKET_NAME, "/prefix/path/file.tar.gz", "/tmp/file.tar.gz", session
     )
 
-    bucket_mock.download_file.assert_called_with("prefix/path/file.tar.gz", "/tmp/file.tar.gz")
+    bucket_mock.download_file.assert_called_with(
+        "prefix/path/file.tar.gz", "/tmp/file.tar.gz", ExtraArgs=None
+    )
 
 
 @patch("tarfile.open")
@@ -1126,6 +1128,9 @@ class FakeS3(object):
     def __init__(self, tmp):
         self.tmp = tmp
         self.sagemaker_session = MagicMock(settings=SessionSettings())
+        # Ensure the spot-check helper returns None so repack tests don't
+        # inject ExpectedBucketOwner unexpectedly.
+        self.sagemaker_session._get_account_id_if_default_bucket.return_value = None
         self.location_map = {}
         self.current_bucket = None
         self.object_mock = MagicMock()
@@ -1140,7 +1145,7 @@ class FakeS3(object):
         self.current_bucket = name
         return self
 
-    def download_file(self, path, target):
+    def download_file(self, path, target, ExtraArgs=None):
         key = "%s/%s" % (self.current_bucket, path)
         shutil.copy2(self.location_map[key], target)
 

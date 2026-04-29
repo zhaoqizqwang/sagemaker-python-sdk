@@ -216,15 +216,17 @@ def test_download_s3_artifacts_valid_s3_path(mock_os_makedirs, mock_session):
         {"Contents": [{"Key": "key/file1.txt"}, {"Key": "key/file2.txt"}]}
     ]
     mock_session.boto_session.client.return_value = mock_s3_client
+    # Prevent ExpectedBucketOwner from being injected into download_file calls
+    mock_session._get_account_id_if_default_bucket = lambda bucket: None
 
     _download_s3_artifacts(s3_path, dst_path, mock_session)
 
     mock_os_makedirs.assert_called_with(dst_path, exist_ok=True)
     mock_s3_client.download_file.assert_any_call(
-        "bucket", "key/file1.txt", os.path.join(dst_path, "file1.txt")
+        "bucket", "key/file1.txt", os.path.join(dst_path, "file1.txt"), ExtraArgs=None
     )
     mock_s3_client.download_file.assert_any_call(
-        "bucket", "key/file2.txt", os.path.join(dst_path, "file2.txt")
+        "bucket", "key/file2.txt", os.path.join(dst_path, "file2.txt"), ExtraArgs=None
     )
 
 
