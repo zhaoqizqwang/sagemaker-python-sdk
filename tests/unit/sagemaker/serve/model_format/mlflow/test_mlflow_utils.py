@@ -223,10 +223,10 @@ def test_download_s3_artifacts_valid_s3_path(mock_os_makedirs, mock_session):
 
     mock_os_makedirs.assert_called_with(dst_path, exist_ok=True)
     mock_s3_client.download_file.assert_any_call(
-        "bucket", "key/file1.txt", os.path.join(dst_path, "file1.txt")
+        "bucket", "key/file1.txt", os.path.join(dst_path, "file1.txt"), ExtraArgs=None
     )
     mock_s3_client.download_file.assert_any_call(
-        "bucket", "key/file2.txt", os.path.join(dst_path, "file2.txt")
+        "bucket", "key/file2.txt", os.path.join(dst_path, "file2.txt"), ExtraArgs=None
     )
 
 
