@@ -176,9 +176,18 @@ class AsyncPredictor:
             )
 
         data = self.serializer.serialize(data)
-        self.s3_client.put_object(
-            Body=data, Bucket=bucket, Key=key, ContentType=self.serializer.CONTENT_TYPE
-        )
+        # Spot check: enforce ownership only when uploading to the session's default
+        # bucket. Cross-account destinations are left untouched.
+        put_kwargs = {
+            "Body": data,
+            "Bucket": bucket,
+            "Key": key,
+            "ContentType": self.serializer.CONTENT_TYPE,
+        }
+        expected_owner = self.sagemaker_session._get_account_id_if_default_bucket(bucket)
+        if expected_owner:
+            put_kwargs["ExpectedBucketOwner"] = expected_owner
+        self.s3_client.put_object(**put_kwargs)
         input_path = input_path or "s3://{}/{}".format(bucket, key)
 
         return input_path
@@ -241,7 +250,13 @@ class AsyncPredictor:
                 output_path=output_path,
                 seconds=waiter_config.delay * waiter_config.max_attempts,
             )
-        s3_object = self.s3_client.get_object(Bucket=bucket, Key=key)
+        # Spot check: enforce ownership only when reading from the session's default
+        # bucket. Cross-account reads are left untouched.
+        get_kwargs = {"Bucket": bucket, "Key": key}
+        expected_owner = self.sagemaker_session._get_account_id_if_default_bucket(bucket)
+        if expected_owner:
+            get_kwargs["ExpectedBucketOwner"] = expected_owner
+        s3_object = self.s3_client.get_object(**get_kwargs)
         result = self.predictor._handle_response(response=s3_object)
         return result
 
@@ -311,12 +326,22 @@ class AsyncPredictor:
             time.sleep(1)
 
         if output_file_found.is_set():
-            s3_object = self.s3_client.get_object(Bucket=output_bucket, Key=output_key)
+            get_kwargs = {"Bucket": output_bucket, "Key": output_key}
+            expected_owner = self.sagemaker_session._get_account_id_if_default_bucket(
+                output_bucket
+            )
+            if expected_owner:
+                get_kwargs["ExpectedBucketOwner"] = expected_owner
+            s3_object = self.s3_client.get_object(**get_kwargs)
             result = self.predictor._handle_response(response=s3_object)
             return result
 
         if failure_file_found.is_set():
-            failure_object = self.s3_client.get_object(Bucket=failure_bucket, Key=failure_key)
+            fail_kwargs = {"Bucket": failure_bucket, "Key": failure_key}
+            fail_owner = self.sagemaker_session._get_account_id_if_default_bucket(failure_bucket)
+            if fail_owner:
+                fail_kwargs["ExpectedBucketOwner"] = fail_owner
+            failure_object = self.s3_client.get_object(**fail_kwargs)
             failure_response = self.predictor._handle_response(response=failure_object)
             raise AsyncInferenceModelError(message=failure_response)
 

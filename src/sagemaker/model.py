@@ -788,6 +788,9 @@ api/latest/reference/services/sagemaker.html#SageMaker.Client.add_tags>`_
                 dependencies=self.dependencies,
                 kms_key=self.model_kms_key,
                 settings=self.sagemaker_session.settings,
+                expected_bucket_owner=self.sagemaker_session._get_account_id_if_default_bucket(
+                    bucket
+                ),
             )
 
         if repack and self.model_data is not None and self.entry_point is not None:

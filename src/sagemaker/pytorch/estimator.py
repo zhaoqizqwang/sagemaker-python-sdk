@@ -744,7 +744,14 @@ class PyTorch(Framework):
             # Copy the object with the new name
             copy_source = {"Bucket": bucket, "Key": original_key}
 
-            s3_client.copy_object(CopySource=copy_source, Bucket=bucket, Key=new_key)
+            # Spot check: enforce ownership only when copying within the session's
+            # default bucket. Cross-account buckets are left untouched.
+            copy_kwargs = {"CopySource": copy_source, "Bucket": bucket, "Key": new_key}
+            expected_owner = self.sagemaker_session._get_account_id_if_default_bucket(bucket)
+            if expected_owner:
+                copy_kwargs["ExpectedBucketOwner"] = expected_owner
+
+            s3_client.copy_object(**copy_kwargs)
 
             return f"s3://{bucket}/{new_key}"
 
